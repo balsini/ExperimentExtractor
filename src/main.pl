@@ -12,8 +12,12 @@ my $root = $base_path . $runs[0];
 
 sub deadline_miss_file
 {
-	my $relative_RT_column = 3;
+	my $relative_RT_column_HW = 3;
+	my $relative_RT_column_SW = 6;
 	my $fh = $_[0];
+	
+	my $SW_miss = 0;
+	my $HW_miss = 0;
 	
 	while (my $row = <$fh>) {
 			  
@@ -25,25 +29,28 @@ sub deadline_miss_file
 		
 		
 		if (scalar(@columns) ge 1 &&
-		scalar(@columns) le $relative_RT_column ) {
+			(scalar(@columns) le $relative_RT_column_SW || scalar(@columns) le $relative_RT_column_HW)) {
 			print 'here';
 		}
 		
-		if (scalar(@columns) gt $relative_RT_column) {
+		if (scalar(@columns) gt $relative_RT_column_HW && scalar(@columns) gt $relative_RT_column_SW) {
 			
-			if ($columns[$relative_RT_column] gt '1.0') {
-				return 1;
+			if ($columns[$relative_RT_column_SW] gt '1.0') {
+				$SW_miss = 1;
+			}
+			if ($columns[$relative_RT_column_HW] gt '1.0') {
+				$HW_miss = 1;
 			}
 			
 		}
 	}
-	return 0;
+	return ($HW_miss, $SW_miss);
 }
 
 
 # For each experiment 
 for my $experiment (sort { $a cmp $b } grep { -d "$root/$_" } read_dir($root)) {
-    print "$experiment\t SchedulableTasksets\n";
+    print "$experiment\tSchedulableTasksetsHW\tSchedulableTasksetsSW\n";
     
     my $experiment_root = $root . '/' . $experiment;
     
@@ -55,7 +62,8 @@ for my $experiment (sort { $a cmp $b } grep { -d "$root/$_" } read_dir($root)) {
     	my $result_root = $experiment_root . '/' . $x;
     	
     	# For each result
-    	my $dlm = 0;
+    	my $dlmHW = 0;
+    	my $dlmSW = 0;
     	my $samples = 0;
     	for my $result (sort { $a cmp $b } grep { -d "$result_root/$_" } read_dir($result_root)) {
 	    	
@@ -63,10 +71,13 @@ for my $experiment (sort { $a cmp $b } grep { -d "$root/$_" } read_dir($root)) {
 			open(my $fh, '<:encoding(UTF-8)', $file_path)
 			  or die "Could not open file '$file_path' $!";
 			  
-			$dlm = $dlm + deadline_miss_file($fh);
+			my @dl_miss = deadline_miss_file($fh);
+			$dlmHW = $dlmHW + $dl_miss[0];
+			$dlmSW = $dlmSW + $dl_miss[1];
 			$samples = $samples + 1;
 	    }
-	    my $succeeded = ($samples - $dlm) / $samples;
-	    print "$succeeded\n";
+	    my $succeededHW = ($samples - $dlmHW) / $samples;
+	    my $succeededSW = ($samples - $dlmSW) / $samples;
+	    print "$succeededHW\t$succeededSW\n";
     }
 }
